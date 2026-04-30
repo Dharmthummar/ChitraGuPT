@@ -343,7 +343,7 @@
         let width, height;
         let columns, rows;
         const fontSize = 14;
-        const chars = "01$#@!%&*()_+-=[]{}|;:,.<>?/".split("");
+        const chars = " 0 1 $ # @! % &  * ( ) _ + - = [ ] { } | ; : , . < > ? / ";
         
         let mouse = { x: -1000, y: -1000 };
 
@@ -374,11 +374,11 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
                     // Base opacity
-                    let opacity = 0.03;
+                    let opacity = 0.1;
                     let char = chars[Math.floor(Math.random() * chars.length)];
                     
                     if (distance < 150) {
-                        opacity = 0.3 * (1 - distance / 150);
+                        opacity = 0.5 * (1 - distance / 150);
                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
                     } else {
                         ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
