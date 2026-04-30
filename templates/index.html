@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ChitraGuPT</title>
+    <link rel="icon" href="{{ url_for('static', filename='chitra_logo.ico') }}" sizes="any">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='chitra_logo.png') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=30">
+  </head>
+  <body>
+    <div class="video-background-container" aria-hidden="true">
+      <video autoplay loop muted playsinline class="bg-video">
+        <source src="{{ url_for('static', filename='floral_a.mp4') }}" type="video/mp4">
+      </video>
+    </div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <header class="glass-header">
+        <a class="brand" href="/" aria-label="ChitraGuPT home">
+          <span class="brand-mark">
+            <img src="{{ url_for('static', filename='chitra_logo.png') }}" alt="" aria-hidden="true">
+          </span>
+          <span class="brand-copy">
+            <strong>ChitraGuPT</strong>
+            <small>ExcelVisionApp</small>
+          </span>
+        </a>
+
+        <nav class="tab-nav desktop-only" aria-label="Workspace tabs" id="mainNav">
+          <button class="nav-tab is-active" type="button" data-tab="home">Home</button>
+          <button class="nav-tab" type="button" data-tab="extract">Extract</button>
+          <button class="nav-tab" type="button" data-tab="recent">Recent</button>
+          <a class="nav-tab" href="https://github.com/dharmthummar" target="_blank" rel="noreferrer" data-tab="github" style="display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            GitHub
+          </a>
+        </nav>
+
+        <div class="top-actions">
+          <span class="status-pill" id="apiStatus">
+            <span class="status-dot"></span>
+            Status
+          </span>
+          <button class="icon-button" id="settingsButton" type="button" aria-label="Settings">
+            API
+          </button>
+          <button class="host-button" id="shareButton" type="button">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M8.8 3.2 6.2 5.8M8.8 11.8 6.2 9.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="4.2" cy="7.5" r="1.7" stroke="currentColor" stroke-width="1.4"/><circle cx="10.8" cy="2.8" r="1.7" stroke="currentColor" stroke-width="1.4"/><circle cx="10.8" cy="12.2" r="1.7" stroke="currentColor" stroke-width="1.4"/></svg>
+            Host
+          </button>
+        </div>
+
+        <div class="share-popover" id="sharePopover" aria-hidden="true">
+          <div class="popover-head">
+            <strong>Host upload link</strong>
+            <button class="mini-icon" id="refreshShareButton" type="button" aria-label="Refresh share link">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M12 3.2A5.4 5.4 0 1 0 7 12.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12 3.2v3.2H8.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="share-box">
+            <span id="shareUrl">Loading link...</span>
+            <button id="copyShareButton" type="button">Copy</button>
+          </div>
+          <div class="share-actions">
+            <a class="share-link" id="whatsappLink" target="_blank" rel="noreferrer">WhatsApp</a>
+            <a class="share-link" id="emailLink">Email</a>
+          </div>
+          <p class="host-note" id="hostNote">For phone uploads, start with START_HOST_SHARE.bat.</p>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <!-- Home Landing View -->
+        <div id="homeView" style="position: relative;">
+          <div class="landing-row" style="min-height: 70vh; align-items: center; justify-content: center; text-align: center; padding-top: 60px;">
+            <div class="hero-copy" style="max-width: 800px; margin: 0 auto;">
+              <div style="width: 92px; height: 92px; margin: 0 auto 22px; border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,0.24); box-shadow: 0 24px 50px rgba(0,0,0,0.35);">
+                <img src="{{ url_for('static', filename='chitra_logo.png') }}" alt="ChitraGuPT logo" style="width: 100%; height: 100%; object-fit: cover;">
+              </div>
+              <span class="hero-kicker" style="font-size: 1rem; letter-spacing: 2px; margin-bottom: 20px; color: #fff;">ExcelVisionApp</span>
+              <h1 style="font-size: 4.5rem; letter-spacing: -0.04em; margin-bottom: 24px; color: #fff;">ChitraGuPT<br>for Excel Extraction</h1>
+              <p style="font-size: 1.25rem; color: rgba(255,255,255,0.6); margin: 0 auto 40px; max-width: 600px;">Seamlessly transform images and complex documents into structured Excel data. Build and ship faster with intelligent parsing.</p>
+              <button class="primary-button" onclick="document.querySelector('[data-tab=\'extract\']').click()" style="font-size: 1.1rem; padding: 0 32px; min-height: 54px; border-radius: 27px; background: #fff; color: #000;">Start Extracting</button>
+            </div>
+          </div>
+
+          <div style="max-width: 1180px; margin: -24px auto 20px; padding: 0 20px; position: relative; z-index: 10;">
+            <div style="border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.55); box-shadow: 0 30px 70px rgba(0,0,0,0.55);">
+              <img src="{{ url_for('static', filename='excelvision_hero_mockup.png') }}" alt="ChitraGuPT app interface" style="display: block; width: 100%; height: auto;">
+            </div>
+          </div>
+
+          <!-- How It Works Section -->
+          <div style="padding: 80px 20px; max-width: 1200px; margin: 0 auto; position: relative; z-index: 10;">
+            <div style="text-align: center; margin-bottom: 60px;">
+              <h2 style="font-size: 2.5rem; letter-spacing: -0.03em; color: #fff;">How it works</h2>
+              <p style="color: rgba(255,255,255,0.6); font-size: 1.1rem; margin-top: 10px;">Three simple steps to automated data entry.</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 40px; align-items: start;">
+              <!-- Small tabs -->
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="step-tab is-active" style="padding: 24px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: all 0.2s;">
+                  <h4 style="margin: 0 0 8px; font-size: 1.1rem; color: #fff;">1. Upload Document</h4>
+                  <p style="margin: 0; color: rgba(255,255,255,0.6); font-size: 0.95rem;">Drag and drop any image, invoice, or screenshot into the secure vault.</p>
+                </div>
+                <div class="step-tab" style="padding: 24px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid transparent; cursor: pointer; transition: all 0.2s;">
+                  <h4 style="margin: 0 0 8px; font-size: 1.1rem; color: #fff;">2. AI Processing</h4>
+                  <p style="margin: 0; color: rgba(255,255,255,0.6); font-size: 0.95rem;">Gemini 3.1 Flash Lite analyzes the context and extracts structured data intelligently.</p>
+                </div>
+                <div class="step-tab" style="padding: 24px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px solid transparent; cursor: pointer; transition: all 0.2s;">
+                  <h4 style="margin: 0 0 8px; font-size: 1.1rem; color: #fff;">3. Excel Export</h4>
+                  <p style="margin: 0; color: rgba(255,255,255,0.6); font-size: 0.95rem;">Data is automatically appended to your target spreadsheet. No manual entry.</p>
+                </div>
+              </div>
+              
+              <!-- Animation Window -->
+              <div style="background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; min-height: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); backdrop-filter: blur(20px);">
+                <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f56;"></div>
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
+                  <div style="width: 12px; height: 12px; border-radius: 50%; background: #27c93f;"></div>
+                </div>
+                <div id="typewriter" style="font-family: 'Geist Mono', monospace; font-size: 0.9rem; color: #e2e8f0; white-space: pre-wrap; line-height: 1.6;">
+<span style="color: #61afef;">import</span> { GeminiExtractor } <span style="color: #61afef;">from</span> <span style="color: #98c379;">'@ai/vision'</span>;
+
+<span style="color: #c678dd;">const</span> invoice = <span style="color: #c678dd;">await</span> GeminiExtractor.parse(<span style="color: #98c379;">'receipt_01.png'</span>);
+console.log(invoice.data);
+
+<span style="color: #5c6370;">// Output:</span>
+{
+  <span style="color: #e06c75;">"vendor"</span>: <span style="color: #98c379;">"OpenAI"</span>,
+  <span style="color: #e06c75;">"total"</span>: <span style="color: #d19a66;">120.50</span>,
+  <span style="color: #e06c75;">"date"</span>: <span style="color: #98c379;">"2026-04-29"</span>
+}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Testimonial Section -->
+          <div style="padding: 80px 20px 0; margin-top: 40px; position: relative; z-index: 10;">
+            <div style="max-width: 800px; margin: 0 auto; text-align: center;">
+              <h2 style="font-size: 2rem; margin-bottom: 40px; color: #fff;">What builders are saying</h2>
+              <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); backdrop-filter: blur(10px);">
+                <p style="font-size: 1.25rem; font-style: italic; color: #fff; line-height: 1.6; margin-bottom: 30px;">
+                  "ExcelVisionApp completely transformed my workflow. What used to take hours of manual data entry is now done instantly with incredible accuracy. The AI agent seamlessly integrates with my local Excel files - it's like magic."
+                </p>
+                <a href="https://linkedin.com/in/dharmthummar" target="_blank" rel="noreferrer" style="display: inline-flex; align-items: center; gap: 16px; text-decoration: none; color: inherit; padding: 8px 16px; border-radius: 30px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                  <span aria-hidden="true" style="display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; background: #fff; color: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-weight: 700;">DT</span>
+                  <div style="text-align: left;">
+                    <strong style="display: block; font-size: 1.1rem; color: #fff;">Dharm Thummar</strong>
+                    <span style="color: rgba(255,255,255,0.6); font-size: 0.9rem;">Creator & Engineer</span>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Video Container (Codex Effect) -->
+          <div aria-hidden="true" style="position: absolute; bottom: 0; left: 0; width: 100%; height: 900px; z-index: 1; pointer-events: none; mask-image: linear-gradient(to top, rgba(0,0,0,1) 0px, rgba(0,0,0,1) 400px, rgba(0,0,0,0) 900px); -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1) 0px, rgba(0,0,0,1) 400px, rgba(0,0,0,0) 900px);">
+            <video autoplay loop muted playsinline class="bg-video" style="width: 100%; height: 100%; object-fit: cover; object-position: 50% 120%;">
+              <source src="{{ url_for('static', filename='floral.mp4') }}" type="video/mp4">
+            </video>
+          </div>
+
+          <!-- Footer -->
+          <footer style="position: relative; z-index: 10; padding: 80px 40px 40px; margin-top: 120px; background: #000; color: #fff;">
+            <div style="max-width: 1200px; margin: 0 auto;">
+              <!-- Multi-column links -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 40px; margin-bottom: 80px; text-align: left;">
+                
+                <div>
+                  <h4 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 20px;">ExcelVision</h4>
+                  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px;">
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Overview</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Data Extraction</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Gemini Integration</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Pricing</a></li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 20px;">Developers</h4>
+                  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px;">
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Documentation</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">API Reference</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">GitHub Repository</a></li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style="font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 20px;">Company</h4>
+                  <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px;">
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">About Dharm</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Careers</a></li>
+                    <li><a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Contact</a></li>
+                  </ul>
+                </div>
+
+              </div>
+
+              <!-- Bottom Row -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.15); flex-wrap: wrap; gap: 20px;">
+                
+                <div style="display: flex; align-items: center; gap: 16px;">
+                  <img src="{{ url_for('static', filename='chitra_logo.png') }}" alt="" aria-hidden="true" style="width: 30px; height: 30px; border-radius: 8px; object-fit: cover;">
+                  <strong style="color: #fff; font-size: 1.1rem; letter-spacing: -0.02em;">ChitraGuPT</strong>
+                  <span style="color: rgba(255,255,255,0.5); font-size: 0.85rem;">&copy; 2026 Dharm Thummar</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 24px;">
+                  <a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Terms & Policies</a>
+                  <a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">Privacy Policy</a>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 16px;">
+                  <a href="https://github.com/dharmthummar" target="_blank" rel="noreferrer" style="color: #fff; opacity: 0.7; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" aria-label="GitHub">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                  </a>
+                  <a href="https://linkedin.com/in/dharmthummar" target="_blank" rel="noreferrer" style="color: #fff; opacity: 0.7; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" aria-label="LinkedIn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                  </a>
+                </div>
+
+              </div>
+            </div>
+          </footer>
+        </div>
+
+        <!-- Workspace View (Hidden by default) -->
+        <div id="extractView" style="display: none; padding-top: 32px; padding-bottom: 56px;">
+          <div id="phoneStatus" class="phone-status-bar phone-only">Preparing upload screen...</div>
+          <div class="file-manager" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(40px) saturate(200%); max-width: 1360px;">
+            
+            <!-- Left Sidebar: Workbook Configuration -->
+            <aside class="manager-sidebar ide-sidebar" style="border-right: 1px solid rgba(255,255,255,0.12); border-radius: 0; padding: 18px; background: rgba(8,11,18,0.46);">
+              <div class="ide-panel-head">
+                <span class="eyebrow">Explorer</span>
+                <strong>Workspace</strong>
+              </div>
+
+              <div class="sidebar-block">
+                <button class="folder-item is-active" type="button">
+                  <span class="folder-icon"></span>
+                  <span>Invoice Extractor</span>
+                </button>
+              </div>
+
+              <div class="action-card" id="excelConfigCard" style="background: rgba(255,255,255,0.95); border: 1px solid #fff; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,0.12); display: flex; flex-direction: column;">
+                <div class="card-top" style="margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+                  <div class="eyebrow" style="color: rgba(0,0,0,0.5); font-weight: 700; letter-spacing: 0.5px;">Target Excel</div>
+                  <button class="mini-icon" id="openExcelButton" type="button" aria-label="Open or choose Excel workbook" title="Open or choose workbook" style="color: #000; background: rgba(0,0,0,0.05); border: none;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2h10v10H2zM2 5h10M5 2v10"/></svg></button>
+                </div>
+                
+                <div class="drop-interior" style="flex: 1; display: flex; flex-direction: column; gap: 14px;">
+                  <div style="position: relative;">
+                    <input type="text" id="excelPath" list="recentExcelPaths" class="text-input" placeholder="Select or paste Excel path..." style="width: 100%; padding: 14px 46px 14px 14px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); background: #fff; color: #000; font-size: 0.88rem; outline: none; transition: border-color 0.2s;">
+                    <datalist id="recentExcelPaths"></datalist>
+                    <button class="icon-button" id="connectExcelButton" type="button" title="Browse Files" style="position: absolute; right: 6px; top: 6px; width: 34px; height: 34px; background: #000; color: #fff; border-radius: 8px; border: none; cursor: pointer; z-index: 10; transition: transform 0.1s ease;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="pointer-events: none;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </button>
+                  </div>
+
+                  <div id="sheetSelectionArea" style="display: none; animation: fadeIn 0.3s ease;">
+                    <select id="sheetSelect" class="text-input" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid rgba(20, 88, 255, 0.2); background: rgba(20, 88, 255, 0.05); color: #000; font-weight: 600; appearance: none; cursor: pointer;">
+                      <option value="">Select sheet...</option>
+                    </select>
+                  </div>
+
+                  <div style="margin-top: auto;">
+                    <div id="sheetSummary" class="sheet-summary" style="padding: 14px; border-radius: 12px; background: rgba(20, 88, 255, 0.04); border: 1px solid rgba(20, 88, 255, 0.1); font-size: 0.8rem; color: #444; margin-bottom: 12px; display: none;">
+                      <!-- Summary injected here -->
+                    </div>
+                    <button class="primary-button wide-button" id="inspectButton" type="button" style="background: #000; color: #fff; border-radius: 12px; min-height: 46px; font-weight: 700; width: 100%;">Connect & Sync</button>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- Center Panel: Document Workbench -->
+            <section class="manager-main ide-main" style="padding: 20px; display: flex; flex-direction: column; gap: 18px;">
+              <!-- Integrated Toolbar -->
+              <div class="manager-toolbar" style="background: rgba(255,255,255,0.92); border: 1px solid rgba(255,255,255,1); padding: 12px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <div class="crumbs" style="color: #000;">
+                  <strong style="font-size: 1.1rem;">Extraction Engine</strong>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                  <button class="outline-button" onclick="document.getElementById('settingsDialog').showModal()" style="border-color: rgba(0,0,0,0.2); color: #000; min-height: 36px; font-size: 0.85rem; font-weight: 600;">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-right: 6px;"><path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M13.2 8.4a1 1 0 0 0 0-1.4 1 1 0 0 0-1.4 0l-.2.2a10 10 0 0 1-1.4 1.4l-.2.2a1 1 0 0 0 0 1.4 1 1 0 0 0 1.4 0l.2-.2a10 10 0 0 0 1.4-1.4l.2-.2z"/></svg>
+                    API Config
+                  </button>
+                </div>
+              </div>
+
+              <!-- Configuration Grid -->
+              <div class="action-grid" style="grid-template-columns: 1fr; gap: 18px;">
+                <!-- Dropzone -->
+                <div class="action-card dropzone" id="dropzone" style="background: rgba(255,255,255,0.85); border: 1px dashed rgba(0,0,0,0.2); padding: 20px; min-height: 430px; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; cursor: pointer; transition: all 0.3s ease; overflow: hidden;">
+                  
+                  <!-- Empty State -->
+                  <div id="dropEmptyState" style="display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none;">
+                    <div class="plus-ring" style="margin-bottom: 20px; width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; border: 2px solid rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color: #000;"><path d="M12 5v14M5 12h14"/></svg>
+                    </div>
+                    <div class="drop-interior" style="text-align: center;">
+                      <div class="drop-content" id="uploadTitle">
+                        <h3 id="dropTitle" style="color: #000; margin-bottom: 8px; font-weight: 700;">Drop images here</h3>
+                        <p id="dropMeta" style="color: rgba(0,0,0,0.5); font-size: 0.9rem;">or click to browse batch</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- File Grid View (Explorer style) -->
+                  <div id="fileGrid" style="display: none; width: 100%; height: 100%; overflow-y: auto; padding: 10px; max-height: 380px;">
+                    <div id="fileItems" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 16px; width: 100%;">
+                      <!-- Icons will be injected here -->
+                    </div>
+                  </div>
+
+                  <input type="file" id="fileInput" accept="image/*,application/pdf,.pdf" multiple style="display: none;">
+                  <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+
+                  <div style="position: absolute; top: 12px; right: 12px; z-index: 10;">
+                    <button class="mini-icon" id="cameraButton" type="button" aria-label="Camera" style="color: #000; background: rgba(0,0,0,0.05); border: none;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="8" rx="2"/><circle cx="7" cy="7" r="2"/></svg></button>
+                  </div>
+                </div>
+
+                <!-- Re-added hidden file badge for compatibility -->
+                <div id="fileBadge" style="display: none;"></div>
+              </div>
+
+              <!-- Execution Action -->
+              <div class="run-area" style="margin-top: auto; padding: 32px; background: rgba(255,255,255,0.08); border-radius: 20px; text-align: center; border: 1px solid rgba(255,255,255,0.15);">
+                <button class="run-button primary-button wide-button" id="runButton" type="button" disabled style="min-height: 60px; font-size: 1.25rem; background: #fff; color: #000; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                  <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="margin-right: 12px;"><path d="M4 2L14 8L4 14V2Z" fill="currentColor"/></svg>
+                  Run AI Extraction
+                </button>
+                <div class="run-status" style="margin-top: 16px;">
+                  <strong id="processState" style="color: #fff; font-size: 1.1rem;">Ready to Process</strong>
+                  <p id="runHint" style="color: rgba(255,255,255,0.5); margin-top: 6px;">Please upload a document and connect your target Excel file.</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Right Sidebar: Inspector -->
+            <aside class="inspector" style="background: rgba(255,255,255,0.05); border-left: 1px solid rgba(255,255,255,0.1); padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+              <div>
+                <div class="panel-head" style="margin-bottom: 12px;">
+                  <span class="eyebrow" style="color: rgba(255,255,255,0.6);">Document Preview</span>
+                </div>
+                <div class="document-preview" id="documentPreview" style="background: rgba(255,255,255,0.92); border-radius: 16px; border: 1px solid rgba(255,255,255,1); height: 260px; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.1);">
+                  <div class="preview-fallback" id="previewFallback" style="color: rgba(0,0,0,0.4); font-size: 0.95rem;">No image selected</div>
+                  <img id="previewImage" class="preview-image" style="display: none; max-width: 100%; max-height: 100%; object-fit: contain;" alt="Preview">
+                </div>
+              </div>
+
+              <div style="flex: 1; display: flex; flex-direction: column;">
+                <div class="panel-head" style="margin-bottom: 12px;">
+                  <span class="eyebrow" style="color: rgba(255,255,255,0.6);">Extraction Result</span>
+                </div>
+                <div class="result-panel" id="resultPanel" style="flex: 1; background: rgba(255,255,255,0.92); border-radius: 16px; padding: 20px; border: 1px solid rgba(255,255,255,1); min-height: 200px; display: flex; flex-direction: column; box-shadow: 0 8px 30px rgba(0,0,0,0.1);">
+                  <h4 id="resultTitle" style="margin-top: 0; color: #000; margin-bottom: 12px;">Waiting for input...</h4>
+                  <div class="json-console" id="jsonConsole" style="flex: 1; font-family: 'Geist Mono', monospace; font-size: 0.85rem; color: #334155; overflow: auto;">Extraction data will be streamed here.</div>
+                  <table class="result-table" id="resultTable" style="display: none; width: 100%; text-align: left; color: #000;"></table>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <!-- Recent View -->
+        <div id="recentView" style="display: none; padding-top: 32px; padding-bottom: 56px;">
+          <section class="recent-workspace">
+            <div class="recent-panel">
+              <div class="recent-panel-head">
+                <span class="eyebrow">Connected Sheets</span>
+                <strong>Recent workbooks</strong>
+              </div>
+              <div id="recentSheets" class="recent-strip"></div>
+            </div>
+            <div class="recent-panel">
+              <div class="recent-panel-head">
+                <span class="eyebrow">Rows Added</span>
+                <strong>Extraction history</strong>
+              </div>
+              <div id="historyList" class="history-list"></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Overlays & Animation Layers -->
+        <div id="overlays" style="pointer-events: none;">
+          <div id="successOverlay" class="success-overlay"><h2 id="successTitle"></h2><p id="successText"></p></div>
+          <div id="extractionStage" style="display:none;"></div>
+          <div id="dataFlightLayer" style="display:none;"></div>
+          <div id="excelBoard" style="display:none;"></div>
+          <div id="excelBoardStatus" style="display:none;"></div>
+          <div id="excelGridPreview" style="display:none;"></div>
+        </div>
+      </main>
+
+      <!-- Settings Dialog -->
+      <dialog class="settings-dialog" id="settingsDialog" style="border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); backdrop-filter: blur(20px); background: rgba(0,0,0,0.85); color: #fff;">
+        <div class="dialog-content">
+          <div class="dialog-head" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #fff;">API Configuration</h3>
+            <button class="mini-icon" id="closeSettingsButton" type="button" onclick="document.getElementById('settingsDialog').close()" style="color: #fff;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+              <label for="apiKey" style="font-weight: 600; font-size: 0.9rem; color: rgba(255,255,255,0.8);">Gemini API Key</label>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style="display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: 8px; background: #fff; color: #000; text-decoration: none; font-size: 0.78rem; font-weight: 700; white-space: nowrap;">
+                Get API key
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 3H3.5A1.5 1.5 0 0 0 2 4.5v6A1.5 1.5 0 0 0 3.5 12h6A1.5 1.5 0 0 0 11 10.5V9"/><path d="M8 2h4v4M6.5 7.5 12 2"/></svg>
+              </a>
+            </div>
+            <input type="password" id="apiKey" class="text-input" placeholder="AIzaSy..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff;">
+          </div>
+          <div class="form-group" style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; color: rgba(255,255,255,0.8);">Model Name</label>
+            <input type="text" id="modelName" class="text-input" value="gemini-3.1-flash-lite-preview" readonly aria-readonly="true" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff;">
+          </div>
+          <button class="primary-button wide-button" id="saveSettingsButton" type="button" style="width: 100%; padding: 12px; border-radius: 8px; background: #fff; color: #000;">Save Settings</button>
+        </div>
+      </dialog>
+
+
+    </div>
+
+    <div class="mouse-glow" id="mouse-glow"></div>
+    <script>
+      const glow = document.getElementById('mouse-glow');
+      document.addEventListener('mousemove', (e) => {
+        glow.style.opacity = '1';
+        requestAnimationFrame(() => {
+          glow.style.transform = `translate(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%))`;
+        });
+      });
+      document.addEventListener('mouseleave', () => {
+        glow.style.opacity = '0';
+      });
+    </script>
+    <script>
+      // Tab Navigation Logic
+      const navTabs = document.querySelectorAll('#mainNav .nav-tab');
+      const homeView = document.getElementById('homeView');
+      const extractView = document.getElementById('extractView');
+      const recentView = document.getElementById('recentView');
+
+      function switchTab(target, save = true) {
+        if (target === 'github') return;
+        
+        navTabs.forEach(t => {
+          t.classList.remove('is-active');
+          if (t.dataset.tab === target) t.classList.add('is-active');
+        });
+        
+        if (target === 'home') {
+          homeView.style.display = 'block';
+          extractView.style.display = 'none';
+          recentView.style.display = 'none';
+        } else if (target === 'extract') {
+          homeView.style.display = 'none';
+          extractView.style.display = 'block';
+          recentView.style.display = 'none';
+        } else if (target === 'recent') {
+          homeView.style.display = 'none';
+          extractView.style.display = 'none';
+          recentView.style.display = 'block';
+        }
+        
+        if (save) localStorage.setItem('activeTab', target);
+      }
+
+      navTabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          switchTab(tab.dataset.tab);
+        });
+      });
+
+      // Restore tab on refresh
+      window.addEventListener('DOMContentLoaded', () => {
+        const savedTab = localStorage.getItem('activeTab');
+        if (savedTab) {
+          switchTab(savedTab, false);
+        }
+      });
+      
+      // Step-by-step hover animation
+      const steps = document.querySelectorAll('.step-tab');
+      steps.forEach(step => {
+        step.addEventListener('mouseenter', () => {
+          steps.forEach(s => {
+            s.classList.remove('is-active');
+            s.style.background = 'rgba(255,255,255,0.03)';
+            s.style.borderColor = 'transparent';
+          });
+          step.classList.add('is-active');
+          step.style.background = 'rgba(255,255,255,0.1)';
+          step.style.borderColor = 'rgba(255,255,255,0.2)';
+        });
+      });
+    </script>
+    <script src="{{ url_for('static', filename='ascii.js') }}?v=9"></script>
+    <script src="{{ url_for('static', filename='app.js') }}?v=29"></script>
+  </body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChitraGuPT | AI Data Extraction by Dharm Thummar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#000000',
+                        primary: '#ffffff',
+                        'primary-60': 'rgba(255, 255, 255, 0.6)',
+                        'primary-12': 'rgba(255, 255, 255, 0.12)',
+                        'primary-4': 'rgba(255, 255, 255, 0.04)',
+                    },
+                    fontFamily: {
+                        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* OpenAI-style Hero Background Mask */
+        .hero-bg-mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1200px;
+            z-index: -10;
+            pointer-events: none;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0px, rgba(0,0,0,1) 480px, rgba(0,0,0,0) 1200px);
+            -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0px, rgba(0,0,0,1) 480px, rgba(0,0,0,0) 1200px);
+        }
+
+        .hero-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.8;
+        }
+
+        /* Glass Header */
+        .glass-header {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background: #fff;
+            color: #000;
+            border-radius: 9999px;
+            transition: background-color 0.2s ease;
+        }
+        .btn-primary:hover {
+            background: #e5e5e5;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 9999px;
+            transition: background-color 0.2s ease;
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Feature Images */
+        .feature-image-container {
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .feature-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Creator Profile */
+        .creator-social {
+            transition: color 0.2s ease;
+        }
+        .creator-social:hover {
+            color: #fff;
+        }
+    </style>
+</head>
+<body class="selection:bg-white selection:text-black">
+
+    <!-- Hero Background Video (Exact OpenAI Asset) -->
+    <div class="hero-bg-mask">
+        <video crossorigin="anonymous" playsinline autoplay loop muted class="hero-video">
+            <source src="https://cdn.openai.com/ctf-cdn/floral_a.mp4" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Navigation -->
+    <header class="fixed top-0 inset-x-0 z-50 glass-header h-16 flex items-center justify-between px-6 md:px-8">
+        <div class="flex items-center gap-6">
+            <a href="#" class="flex items-center gap-3 text-white font-semibold text-xl tracking-tight">
+                <span class="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 overflow-hidden">
+                    <img src="static/chitra_logo.png" alt="ChitraGuPT Logo" class="w-full h-full object-cover">
+                </span>
+                ChitraGuPT
+            </a>
+            <nav class="hidden md:flex gap-6 text-sm font-medium text-primary-60">
+                <a href="#features" class="hover:text-white transition-colors">Features</a>
+                <a href="https://github.com/dharmthummar" target="_blank" class="hover:text-white transition-colors">GitHub</a>
+                <a href="https://linkedin.com/in/dharmthummar" target="_blank" class="hover:text-white transition-colors">LinkedIn</a>
+            </nav>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="dist/ChitraGuPT-production.zip" class="btn-primary px-4 py-1.5 text-sm font-medium">Download</a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main class="relative pt-32 pb-16 md:pt-48 md:pb-32 px-6 flex flex-col items-center text-center max-w-5xl mx-auto">
+        
+        <!-- ChitraGuPT App Icon -->
+        <div class="w-[90px] h-[90px] rounded-[24px] overflow-hidden border border-white/20 shadow-[0_0_40px_rgba(255,255,255,0.1)] mb-8">
+            <img src="static/chitra_logo.png" alt="ChitraGuPT App Icon" class="w-full h-full object-cover">
+        </div>
+
+        <h1 class="text-5xl md:text-7xl font-semibold tracking-tight mb-6">ChitraGuPT</h1>
+        <p class="text-xl md:text-2xl text-primary-60 max-w-2xl text-balance mb-10">
+            An extraction agent that helps you build and sync data with Excel - powered by AI.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <a href="dist/ChitraGuPT-production.zip" class="btn-primary px-6 py-3 text-base font-medium flex items-center justify-center gap-2">
+                Download for Windows
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            </a>
+            <a href="https://github.com/dharmthummar" target="_blank" class="btn-secondary px-6 py-3 text-base font-medium flex items-center justify-center gap-2">
+                View Source
+            </a>
+        </div>
+    </main>
+
+    <!-- App Interface Mockup Showcase -->
+    <div class="max-w-7xl mx-auto px-6 mb-16 relative z-10">
+        <div class="rounded-3xl overflow-hidden border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.6)] bg-[#050505]">
+            <img src="static/excelvision_hero_mockup.png" alt="ChitraGuPT App Interface" class="w-full h-auto block">
+        </div>
+    </div>
+
+    <!-- How It Works Section (Inspired by index.html) -->
+    <div id="features" class="max-w-6xl mx-auto px-6 py-24 relative z-10">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-semibold tracking-tight mb-4">How it works</h2>
+            <p class="text-primary-60 text-xl">Three simple steps to automated data entry.</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-12 items-start">
+            
+            <!-- Step Tabs -->
+            <div class="md:col-span-5 flex flex-col gap-4">
+                <div class="p-6 rounded-2xl border border-white/20 bg-white/10 cursor-pointer transition-all hover:bg-white/15">
+                    <h4 class="text-xl font-semibold mb-2">1. Upload Document</h4>
+                    <p class="text-primary-60 text-base">Drag and drop any image, invoice, or screenshot into the secure vault or use Mobile-First capture.</p>
+                </div>
+                <div class="p-6 rounded-2xl border border-transparent bg-white/5 cursor-pointer transition-all hover:bg-white/10">
+                    <h4 class="text-xl font-semibold mb-2">2. AI Processing</h4>
+                    <p class="text-primary-60 text-base">Gemini 3.1 Flash Lite analyzes the context and extracts structured data intelligently.</p>
+                </div>
+                <div class="p-6 rounded-2xl border border-transparent bg-white/5 cursor-pointer transition-all hover:bg-white/10">
+                    <h4 class="text-xl font-semibold mb-2">3. Excel Export</h4>
+                    <p class="text-primary-60 text-base">Data is automatically appended to your target spreadsheet. No manual entry required.</p>
+                </div>
+            </div>
+            
+            <!-- Code Window Animation -->
+            <div class="md:col-span-7 bg-black/70 border border-white/10 rounded-3xl p-6 md:p-8 min-h-[400px] shadow-[0_20px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                <!-- Window Controls -->
+                <div class="flex gap-2 mb-6">
+                    <div class="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+                    <div class="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+                    <div class="w-3 h-3 rounded-full bg-[#27c93f]"></div>
+                </div>
+                <!-- Mock Code -->
+                <div class="font-mono text-[15px] leading-relaxed text-[#e2e8f0] whitespace-pre-wrap">
+<span class="text-[#61afef]">import</span> { GeminiExtractor } <span class="text-[#61afef]">from</span> <span class="text-[#98c379]">'@ai/vision'</span>;
+
+<span class="text-[#c678dd]">const</span> invoice = <span class="text-[#c678dd]">await</span> GeminiExtractor.parse(<span class="text-[#98c379]">'receipt_01.png'</span>);
+console.log(invoice.data);
+
+<span class="text-[#5c6370]">// Output:</span>
+{
+  <span class="text-[#e06c75]">"vendor"</span>: <span class="text-[#98c379]">"OpenAI"</span>,
+  <span class="text-[#e06c75]">"total"</span>: <span class="text-[#d19a66]">120.50</span>,
+  <span class="text-[#e06c75]">"date"</span>: <span class="text-[#98c379]">"2026-04-29"</span>
+}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Testimonial Section -->
+    <div class="max-w-4xl mx-auto px-6 py-24 relative z-10 text-center">
+        <h2 class="text-3xl font-semibold tracking-tight mb-12">What builders are saying</h2>
+        <div class="bg-white/5 border border-white/10 p-10 md:p-14 rounded-3xl shadow-2xl backdrop-blur-md">
+            <p class="text-xl md:text-2xl italic text-white leading-relaxed mb-8">
+                "ChitraGuPT completely transformed my workflow. What used to take hours of manual data entry is now done instantly with incredible accuracy. The AI agent seamlessly integrates with my local Excel files - it's like magic."
+            </p>
+            <a href="https://linkedin.com/in/dharmthummar" target="_blank" class="inline-flex items-center gap-4 hover:bg-white/10 px-4 py-2 rounded-full transition-colors">
+                <img src="https://media.licdn.com/dms/image/v2/D4D03AQF3L-abvCLm8w/profile-displayphoto-shrink_800_800/B4DZeTAGjRHkAg-/0/1750517968068?e=1779321600&v=beta&t=JBLIM2T-dZQCX7-_bPlIXUu0RwxGLDJTICZgyN9mAJ4" alt="Dharm Thummar" class="w-14 h-14 rounded-full object-cover shadow-lg">
+                <div class="text-left">
+                    <strong class="block text-lg text-white">Dharm Thummar</strong>
+                    <span class="text-primary-60 text-sm">Creator & Engineer</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Social Links Section -->
+    <section class="border-t border-white/10 py-16 px-6 bg-[#050505]">
+        <div class="max-w-4xl mx-auto flex flex-col items-center text-center">
+            <div class="flex flex-wrap justify-center gap-6 text-primary-60 font-medium">
+                <a href="https://github.com/dharmthummar" target="_blank" class="flex items-center gap-2 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                    GitHub
+                </a>
+                <a href="https://twitter.com/dharmthummar" target="_blank" class="flex items-center gap-2 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"></path></svg>
+                    Twitter
+                </a>
+                <a href="https://linkedin.com/in/dharmthummar" target="_blank" class="flex items-center gap-2 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+                    LinkedIn
+                </a>
+                <a href="https://instagram.com/dharm_1602" target="_blank" class="flex items-center gap-2 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                    Instagram
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Simple Footer -->
+    <footer class="py-8 text-center text-sm text-primary-60 border-t border-white/10 bg-[#050505]">
+        &copy; 2026 Dharm Thummar. Inspired by OpenAI Codex.
+    </footer>
+
+</body>
+</html>

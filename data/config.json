@@ -1,0 +1,29 @@
+{
+  "provider": "gemini",
+  "gemini_api_key": "AIzaSyB0Tpl_Xo1HdnW4-yMI-Fiq1UuaQnp6BUw",
+  "gemini_model": "models/gemini-3.1-flash-lite-preview",
+  "default_excel_path": "C:\\Users\\JMDESIGN1\\Downloads\\webAPPs\\webAPPs\\test_workbook.xlsx",
+  "default_sheet": "Invoices",
+  "recent_sheets": [
+    {
+      "path": "C:\\Users\\JMDESIGN1\\Downloads\\webAPPs\\webAPPs\\test_workbook.xlsx",
+      "sheet": "Invoices",
+      "lastUsed": "2026-04-30T04:01:13"
+    },
+    {
+      "path": "C:\\Users\\JMDESIGN1\\Downloads\\webAPPs\\webAPPs\\FullTestWorkbook.xlsx",
+      "sheet": "ComplexSheet",
+      "lastUsed": "2026-04-30T04:00:36"
+    },
+    {
+      "path": "C:\\Users\\JMDESIGN1\\Downloads\\webAPPs\\webAPPs\\FullTestWorkbook.xlsx",
+      "sheet": "EasySheet",
+      "lastUsed": "2026-04-30T04:00:24"
+    },
+    {
+      "path": "C:\\Users\\JMDESIGN1\\Downloads\\Book1.xlsx",
+      "sheet": "Sheet1",
+      "lastUsed": "2026-04-30T03:59:03"
+    }
+  ]
+}
