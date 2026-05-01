@@ -688,8 +688,19 @@ def api_extract():
             raise ValueError("Uploaded file is empty.")
         if len(file_bytes) > MAX_INLINE_BYTES:
             raise ValueError("File is too large for inline AI reading. Use a smaller file under 18 MB.")
-        sheet_info = inspect_workbook(path, sheet)
-        headers = sheet_info["headers"]
+        
+        # Performance Optimization: Use client headers to skip an extra Excel load
+        headers_raw = request.form.get("headers")
+        sample_rows_raw = request.form.get("sampleRows")
+        
+        if headers_raw:
+            headers = json.loads(headers_raw)
+            sample_rows = json.loads(sample_rows_raw or "[]")
+        else:
+            # Fallback for old clients or manual API calls
+            sheet_info = inspect_workbook(path, sheet)
+            headers = sheet_info["headers"]
+            sample_rows = sheet_info["sampleRows"]
 
         row_data = call_gemini(
             api_key=config.get("gemini_api_key", ""),
@@ -697,7 +708,7 @@ def api_extract():
             file_bytes=file_bytes,
             mime_type=mime_type,
             headers=headers,
-            sample_rows=sheet_info["sampleRows"],
+            sample_rows=sample_rows,
         )
         row_number = append_to_workbook(path, sheet, headers, row_data)
         remember_sheet(path, sheet)
