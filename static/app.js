@@ -59,6 +59,9 @@ function initEls() {
     cameraInput: $("cameraInput"),
     browseFileButton: document.getElementById("browseFileButton"),
     cameraButton: $("cameraButton"),
+    mobileCameraButton: $("mobileCameraButton"),
+    mobileUploadButton: $("mobileUploadButton"),
+    dropActions: document.querySelector(".drop-actions"),
     fileBadge: $("fileBadge"),
     dropTitle: $("dropTitle"),
     dropMeta: $("dropMeta"),
@@ -101,9 +104,9 @@ function initEls() {
 function detectPhoneMode() {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("phone") === "1" || params.get("mobile") === "1";
-  const likelyPhone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-    && window.matchMedia("(max-width: 820px)").matches;
-  return forced || likelyPhone;
+  const likelyPhone = (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    || window.matchMedia("(max-width: 820px)").matches) && !params.get("desktop");
+  return forced || (likelyPhone && window.matchMedia("(pointer: coarse)").matches) || (likelyPhone && window.innerWidth < 600);
 }
 
 function updatePhoneStatus(message, kind = "info") {
@@ -246,11 +249,8 @@ function renderShare(share) {
 }
 
 function preparePhoneMode(config) {
-  if (els.browseFileButton?.isConnected) {
-    els.browseFileButton.textContent = "Upload file";
-  }
-  if (els.cameraButton?.isConnected) {
-    els.cameraButton.setAttribute("aria-label", "Take photo");
+  if (els.dropActions) {
+    els.dropActions.style.display = "grid";
   }
   els.dropTitle.textContent = appState.selectedFiles.length ? `${appState.selectedFiles.length} files` : "Upload invoice";
   els.dropMeta.textContent = appState.selectedFiles.length
@@ -677,7 +677,7 @@ function startProcessingAnimation() {
   appState.animationTimer = window.setInterval(() => {
     index = index < frames.length ? index + 1 : 4;
     els.jsonConsole.textContent = frames.slice(0, index).join("\n");
-  }, 520);
+  }, 200);
 }
 
 function stopProcessingAnimation() {
@@ -710,6 +710,13 @@ function finishProcessing(data) {
 
   if (appState.phoneMode) {
     updatePhoneStatus(`Saved. Row ${data.rowNumber} added.`, "ok");
+    // Show result panel on phone
+    els.resultPanel.style.display = "flex";
+    els.resultPanel.style.marginTop = "12px";
+    els.resultPanel.style.maxHeight = "300px";
+    els.resultPanel.style.overflow = "auto";
+    els.resultPanel.style.background = "rgba(255,255,255,0.95)";
+    els.resultPanel.scrollIntoView({ behavior: "smooth" });
     resetPhoneFilePrompt();
   }
   updateRunState();
@@ -725,6 +732,9 @@ function failProcessing(message) {
   els.jsonConsole.textContent = JSON.stringify({error: message}, null, 2);
   if (appState.phoneMode) {
     updatePhoneStatus(`Could not add row: ${message}`, "warn");
+    els.resultPanel.style.display = "flex";
+    els.resultPanel.style.marginTop = "12px";
+    els.resultPanel.scrollIntoView({ behavior: "smooth" });
   }
   updateRunState();
 }
@@ -747,42 +757,60 @@ async function runExtraction() {
   const filesToProcess = [...appState.selectedFiles];
   appState.isProcessing = true;
   updateRunState();
-
   startProcessingAnimation();
 
-  try {
-    for (let i = 0; i < filesToProcess.length; i++) {
-      const file = filesToProcess[i];
-      const progress = filesToProcess.length > 1 ? `[${i + 1}/${filesToProcess.length}] ` : "";
-      els.processState.textContent = `${progress}Processing ${file.name}...`;
+  const concurrencyLimit = 3;
+  const results = [];
+  const errors = [];
+  
+  // Helper to process a single file
+  const processFile = async (file, index) => {
+    try {
+      const progress = filesToProcess.length > 1 ? `[${index + 1}/${filesToProcess.length}] ` : "";
       const uploadFile = await optimizeUploadFile(file);
-      const optimizedNote = uploadFile !== file ? ` (${fileSize(file.size)} -> ${fileSize(uploadFile.size)})` : "";
-      els.processState.textContent = `${progress}Sending ${uploadFile.name}${optimizedNote}...`;
-
+      
       const formData = new FormData();
       formData.append("excelPath", els.excelPath.value.trim());
       formData.append("sheet", els.sheetSelect.value);
       formData.append("document", uploadFile, uploadFile.name);
+      // Send headers to server to skip redundant Excel load
+      if (appState.sheetInfo?.headers) {
+        formData.append("headers", JSON.stringify(appState.sheetInfo.headers));
+        formData.append("sampleRows", JSON.stringify(appState.sheetInfo.sampleRows || []));
+      }
 
       const response = await fetch("/api/extract", {
         method: "POST",
         body: formData,
       });
       const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) throw new Error(data.error || `Error ${response.status}`);
       
-      if (!response.ok || data.ok === false) {
-        throw new Error(data.error || `Request failed: ${response.status}`);
-      }
+      results.push(data);
+      els.processState.textContent = `${progress} Done: ${file.name}`;
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  };
 
-      // Final file in batch gets the full UI treatment
-      if (i === filesToProcess.length - 1) {
-        finishProcessing(data);
-        renderResult(data);
-        showSuccess(data);
-      } else {
-        // Intermediate success logging
-        els.jsonConsole.innerHTML += `\n\n${progress} ${file.name} -> Row ${data.rowNumber} OK`;
+  try {
+    // Run in parallel with limit
+    for (let i = 0; i < filesToProcess.length; i += concurrencyLimit) {
+      const chunk = filesToProcess.slice(i, i + concurrencyLimit);
+      await Promise.all(chunk.map((file, idx) => processFile(file, i + idx)));
+      if (errors.length > 0 && results.length === 0) break; // Stop if first chunk fails completely
+    }
+
+    if (results.length > 0) {
+      const lastData = results[results.length - 1];
+      finishProcessing(lastData);
+      renderResult(lastData);
+      showSuccess(lastData);
+      if (errors.length > 0) {
+        els.jsonConsole.innerHTML += `\n\nWarnings:\n${errors.join("\n")}`;
       }
+    } else {
+      throw new Error(errors[0] || "Extraction failed");
     }
 
     appState.selectedFiles = [];
@@ -792,7 +820,7 @@ async function runExtraction() {
     renderDocumentPreview(null);
     renderFileGrid();
     await loadState();
-    window.setTimeout(() => inspectSheet(els.sheetSelect.value), 2800);
+    window.setTimeout(() => inspectSheet(els.sheetSelect.value), 2000);
   } catch (error) {
     failProcessing(error.message);
   } finally {
@@ -906,8 +934,9 @@ function bindEvents() {
   }
 
   if (els.sheetSelect) els.sheetSelect.addEventListener("change", () => inspectSheet(els.sheetSelect.value));
-  if (els.browseFileButton) els.browseFileButton.addEventListener("click", () => els.fileInput?.click());
-  if (els.cameraButton) els.cameraButton.addEventListener("click", () => els.cameraInput?.click());
+  if (els.mobileUploadButton) els.mobileUploadButton.addEventListener("click", (e) => { e.stopPropagation(); els.fileInput?.click(); });
+  if (els.mobileCameraButton) els.mobileCameraButton.addEventListener("click", (e) => { e.stopPropagation(); els.cameraInput?.click(); });
+  if (els.cameraButton) els.cameraButton.addEventListener("click", (e) => { e.stopPropagation(); els.cameraInput?.click(); });
   if (els.fileInput) els.fileInput.addEventListener("change", () => setSelectedFiles(els.fileInput.files));
   if (els.cameraInput) els.cameraInput.addEventListener("change", () => setSelectedFiles(els.cameraInput.files));
   if (els.runButton) els.runButton.addEventListener("click", runExtraction);
