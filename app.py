@@ -6,6 +6,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import socket
 import subprocess
 import sys
@@ -15,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from collections import deque
 from copy import copy
 from datetime import datetime
 from pathlib import Path
@@ -25,16 +27,25 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill
 
 
-APP_DIR = Path(__file__).resolve().parent
+SOURCE_DIR = Path(__file__).resolve().parent
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", SOURCE_DIR))
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else SOURCE_DIR
 DATA_DIR = APP_DIR / "data"
 CONFIG_FILE = DATA_DIR / "config.json"
 HISTORY_FILE = DATA_DIR / "history.jsonl"
 
 DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+GEMINI_FALLBACK_MODELS = (
+    DEFAULT_MODEL,
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+)
 GEMINI_API_VERSION = "v1beta"
 GEMINI_RETRY_DELAYS_SECONDS = (2, 5, 10)
 MAX_INLINE_BYTES = 18 * 1024 * 1024
 MAX_REQUEST_BYTES = 24 * 1024 * 1024
+MAX_HEADER_SCAN_ROWS = 40
 SUPPORTED_EXCEL = {".xlsx", ".xlsm"}
 SUPPORTED_UPLOAD_MIME = {
     "application/pdf",
@@ -48,16 +59,41 @@ SUPPORTED_UPLOAD_MIME = {
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 CONFIG_LOCK = threading.Lock()
 HISTORY_LOCK = threading.Lock()
+INSPECT_CACHE_LOCK = threading.Lock()
+INSPECT_CACHE: dict[tuple[str, int, int, str], dict[str, Any]] = {}
+MAX_INSPECT_CACHE_ITEMS = 24
+WORKBOOK_LOCKS_LOCK = threading.Lock()
+WORKBOOK_LOCKS: dict[str, threading.Lock] = {}
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder=str(RESOURCE_DIR / "static"),
+    template_folder=str(RESOURCE_DIR / "templates"),
+)
 app.config["MAX_CONTENT_LENGTH"] = MAX_REQUEST_BYTES
 app.config["JSON_SORT_KEYS"] = False
+app.config.setdefault("PUBLIC_BASE_URL", "")
+app.config.setdefault("PUBLIC_SHARE_TOKEN", "")
+app.config.setdefault("PUBLIC_SHARE_ERROR", "")
+
+PUBLIC_SHARE_HEADER = "X-Chitra-Share"
+FORWARDED_HEADER_NAMES = ("Cf-Connecting-Ip", "X-Forwarded-For", "X-Real-Ip")
 
 
 class GeminiApiError(RuntimeError):
     def __init__(self, status_code: int, message: str) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+def set_public_share(base_url: str, token: str) -> None:
+    app.config["PUBLIC_BASE_URL"] = base_url.rstrip("/")
+    app.config["PUBLIC_SHARE_TOKEN"] = token
+    app.config["PUBLIC_SHARE_ERROR"] = ""
+
+
+def set_public_share_error(message: str) -> None:
+    app.config["PUBLIC_SHARE_ERROR"] = message
 
 
 def now_iso() -> str:
@@ -97,7 +133,7 @@ def save_config(config: dict[str, Any]) -> None:
 
 
 def display_model_name(model: str) -> str:
-    return clean_model_name(model).removeprefix("models/")
+    return display_from_resource_name(model)
 
 
 def public_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -138,21 +174,94 @@ def cell_to_text(value: Any) -> str:
     return str(value).strip()
 
 
+def workbook_signature(path: Path) -> tuple[str, int, int]:
+    stat = path.stat()
+    return (str(path.resolve()), stat.st_mtime_ns, stat.st_size)
+
+
+def workbook_lock(path: Path) -> threading.Lock:
+    key = str(path.resolve())
+    with WORKBOOK_LOCKS_LOCK:
+        lock = WORKBOOK_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            WORKBOOK_LOCKS[key] = lock
+        return lock
+
+
+def score_header_cells(values: list[str]) -> int:
+    non_empty = [value for value in values if value]
+    if len(non_empty) < 2:
+        return 0
+
+    unique_count = len({value.lower() for value in non_empty})
+    alpha_count = sum(bool(re.search(r"[A-Za-z]", value)) for value in non_empty)
+    short_text_count = sum(len(value) <= 60 for value in non_empty)
+    long_text_count = sum(len(value) > 80 for value in non_empty)
+    mostly_numeric_count = sum(bool(re.fullmatch(r"[$₹€£,.\d\s:/\\-]+", value)) for value in non_empty)
+
+    score = len(non_empty) * 4 + unique_count * 2 + alpha_count * 3 + short_text_count
+    score -= mostly_numeric_count * 4
+    score -= long_text_count * 3
+
+    if alpha_count < max(2, len(non_empty) // 2):
+        score -= 8
+    return score
+
+
+def detect_header_row(ws) -> tuple[int, list[str]]:
+    best_row_number = 1
+    best_headers: list[str] = []
+    best_score = -1
+    max_scan_row = min(ws.max_row or 1, MAX_HEADER_SCAN_ROWS)
+
+    for row_number, row in enumerate(
+        ws.iter_rows(min_row=1, max_row=max_scan_row, values_only=True),
+        start=1,
+    ):
+        headers = [cell_to_text(value) for value in row]
+        score = score_header_cells(headers)
+        if score > best_score:
+            best_score = score
+            best_row_number = row_number
+            best_headers = headers
+
+    return best_row_number, best_headers
+
+
+def last_data_row_for_headers(ws, header_row_number: int, headers: list[str]) -> int:
+    header_indexes = [index + 1 for index, header in enumerate(headers) if header]
+    if not header_indexes:
+        return header_row_number
+
+    for row_number in range(ws.max_row or header_row_number, header_row_number, -1):
+        if any(cell_to_text(ws.cell(row=row_number, column=col_index).value) for col_index in header_indexes):
+            return row_number
+    return header_row_number
+
+
 def inspect_workbook(path_text: str, sheet_name: str | None = None) -> dict[str, Any]:
     path = require_excel_path(path_text)
+    requested_sheet = sheet_name or ""
+    cache_key = (*workbook_signature(path), requested_sheet)
+    with INSPECT_CACHE_LOCK:
+        cached = INSPECT_CACHE.get(cache_key)
+        if cached is not None:
+            return json.loads(json.dumps(cached))
+
     wb = load_workbook(path, read_only=True, data_only=True, **workbook_kwargs(path))
     try:
         sheet_names = wb.sheetnames
         selected = sheet_name if sheet_name in sheet_names else sheet_names[0]
         ws = wb[selected]
 
-        header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])
-        headers = [cell_to_text(value) for value in header_row]
+        header_row_number, headers = detect_header_row(ws)
         valid_headers = [header for header in headers if header]
+        last_data_row = last_data_row_for_headers(ws, header_row_number, headers)
 
         samples: list[dict[str, str]] = []
-        start_row = max(2, ws.max_row - 30)
-        for row in ws.iter_rows(min_row=start_row, max_row=ws.max_row, values_only=True):
+        start_row = max(header_row_number + 1, last_data_row - 30)
+        for row in ws.iter_rows(min_row=start_row, max_row=last_data_row, values_only=True):
             values = [cell_to_text(value) for value in row]
             if not any(values):
                 continue
@@ -163,17 +272,25 @@ def inspect_workbook(path_text: str, sheet_name: str | None = None) -> dict[str,
             if sample:
                 samples.append(sample)
 
-        return {
+        result = {
             "path": str(path),
             "fileName": path.name,
             "sheetNames": sheet_names,
             "sheet": selected,
+            "headerRow": header_row_number,
+            "lastDataRow": last_data_row,
             "headers": headers,
             "validHeaders": valid_headers,
-            "rowCount": max(ws.max_row - 1, 0),
+            "rowCount": max(last_data_row - header_row_number, 0),
             "sampleRows": samples[-3:],
             "checkedAt": now_iso(),
         }
+        with INSPECT_CACHE_LOCK:
+            INSPECT_CACHE[cache_key] = result
+            if len(INSPECT_CACHE) > MAX_INSPECT_CACHE_ITEMS:
+                oldest_key = next(iter(INSPECT_CACHE))
+                INSPECT_CACHE.pop(oldest_key, None)
+        return json.loads(json.dumps(result))
     finally:
         wb.close()
 
@@ -194,8 +311,45 @@ def remember_sheet(path_text: str, sheet: str) -> None:
 
 
 def clean_model_name(name: str) -> str:
-    """Return the only Gemini REST resource this app is allowed to call."""
-    return f"models/{DEFAULT_MODEL}"
+    """Return a safe Gemini REST model resource name."""
+    candidate = str(name or DEFAULT_MODEL).strip()
+    if candidate.startswith("models/"):
+        candidate = candidate.removeprefix("models/")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", candidate):
+        candidate = DEFAULT_MODEL
+    return f"models/{candidate}"
+
+
+def display_from_resource_name(model: str) -> str:
+    return clean_model_name(model).removeprefix("models/")
+
+
+def gemini_model_candidates(model: str) -> list[str]:
+    preferred = display_from_resource_name(model)
+    candidates = [preferred, *GEMINI_FALLBACK_MODELS]
+    unique: list[str] = []
+    for candidate in candidates:
+        cleaned = display_from_resource_name(candidate)
+        if cleaned not in unique:
+            unique.append(cleaned)
+    return [f"models/{candidate}" for candidate in unique]
+
+
+def is_model_unavailable_error(error: GeminiApiError) -> bool:
+    message = str(error).lower()
+    if error.status_code not in {400, 403, 404}:
+        return False
+    return "model" in message and any(
+        phrase in message
+        for phrase in (
+            "not found",
+            "not supported",
+            "not available",
+            "deprecated",
+            "permission",
+            "does not exist",
+        )
+    )
 
 
 def build_prompt(headers: list[str], sample_rows: list[dict[str, str]]) -> str:
@@ -306,7 +460,7 @@ def call_gemini(
     mime_type: str,
     headers: list[str],
     sample_rows: list[dict[str, str]],
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str]:
     if not api_key:
         raise RuntimeError("Add a Gemini API key in Settings first.")
     if len(file_bytes) > MAX_INLINE_BYTES:
@@ -330,11 +484,9 @@ def call_gemini(
         },
     }
 
-    quoted_model = clean_model_name(model)
-
-    def post_payload(request_payload: dict[str, Any]) -> dict[str, Any]:
-        url = f"https://generativelanguage.googleapis.com/{GEMINI_API_VERSION}/{quoted_model}:generateContent"
-        request_body = json.dumps(request_payload).encode("utf-8")
+    def post_payload(model_name: str, request_payload: dict[str, Any]) -> dict[str, Any]:
+        url = f"https://generativelanguage.googleapis.com/{GEMINI_API_VERSION}/{model_name}:generateContent"
+        request_body = json.dumps(request_payload, separators=(",", ":")).encode("utf-8")
         req = urllib.request.Request(
             url,
             data=request_body,
@@ -362,13 +514,30 @@ def call_gemini(
 
         raise RuntimeError("Gemini request failed after automatic retries.")
 
-    try:
-        response_json = post_payload(payload)
-    except GeminiApiError as error:
-        if "responseMimeType" not in str(error) and "response_mime_type" not in str(error):
+    response_json: dict[str, Any] | None = None
+    used_model = ""
+    last_model_error: GeminiApiError | None = None
+
+    for candidate_model in gemini_model_candidates(model):
+        try:
+            response_json = post_payload(candidate_model, payload)
+            used_model = candidate_model
+            break
+        except GeminiApiError as error:
+            if "responseMimeType" in str(error) or "response_mime_type" in str(error):
+                fallback_payload = {**payload, "generationConfig": {"temperature": 0, "maxOutputTokens": 2048}}
+                response_json = post_payload(candidate_model, fallback_payload)
+                used_model = candidate_model
+                break
+            if is_model_unavailable_error(error):
+                last_model_error = error
+                continue
             raise
-        fallback_payload = {**payload, "generationConfig": {"temperature": 0, "maxOutputTokens": 2048}}
-        response_json = post_payload(fallback_payload)
+
+    if response_json is None:
+        if last_model_error:
+            raise last_model_error
+        raise RuntimeError("Gemini request failed because no compatible model was available.")
 
     parts = (
         response_json.get("candidates", [{}])[0]
@@ -380,39 +549,53 @@ def call_gemini(
         raise RuntimeError("Gemini did not return extracted text.")
 
     parsed = parse_json_object(text)
-    return normalize_row(parsed, headers)
+    return normalize_row(parsed, headers), display_from_resource_name(used_model)
 
 
-def append_to_workbook(path_text: str, sheet: str, headers: list[str], row_data: dict[str, Any]) -> int:
+def append_to_workbook(
+    path_text: str,
+    sheet: str,
+    headers: list[str],
+    row_data: dict[str, Any],
+    header_row_number: int | None = None,
+) -> int:
     path = require_excel_path(path_text)
-    wb = load_workbook(path, **workbook_kwargs(path))
-    try:
-        if sheet not in wb.sheetnames:
-            raise ValueError(f"Sheet was not found: {sheet}")
+    with workbook_lock(path):
+        wb = load_workbook(path, **workbook_kwargs(path))
+        try:
+            if sheet not in wb.sheetnames:
+                raise ValueError(f"Sheet was not found: {sheet}")
 
-        ws = wb[sheet]
-        target_row = ws.max_row + 1
-        source_row = max(target_row - 1, 1)
-        highlight = PatternFill(fill_type="solid", fgColor="DFF7EA")
-        text_color = Font(color="0F3D2E")
+            ws = wb[sheet]
+            if header_row_number is None:
+                header_row_number, detected_headers = detect_header_row(ws)
+                if headers == [header for header in detected_headers[:len(headers)]]:
+                    headers = detected_headers
 
-        for col_index, header in enumerate(headers, start=1):
-            source_cell = ws.cell(row=source_row, column=col_index)
-            target_cell = ws.cell(row=target_row, column=col_index)
-            if target_row > 2:
-                target_cell._style = copy(source_cell._style)
-                target_cell.number_format = source_cell.number_format
-                target_cell.alignment = copy(source_cell.alignment)
-                target_cell.border = copy(source_cell.border)
-            target_cell.value = row_data.get(header, "") if header else ""
-            if header:
-                target_cell.fill = highlight
-                target_cell.font = copy(text_color)
+            header_row_number = max(1, int(header_row_number or 1))
+            last_data_row = last_data_row_for_headers(ws, header_row_number, headers)
+            target_row = last_data_row + 1
+            source_row = max(last_data_row, header_row_number)
+            highlight = PatternFill(fill_type="solid", fgColor="DFF7EA")
+            text_color = Font(color="0F3D2E")
 
-        wb.save(path)
-        return target_row
-    finally:
-        wb.close()
+            for col_index, header in enumerate(headers, start=1):
+                source_cell = ws.cell(row=source_row, column=col_index)
+                target_cell = ws.cell(row=target_row, column=col_index)
+                if target_row > 2:
+                    target_cell._style = copy(source_cell._style)
+                    target_cell.number_format = source_cell.number_format
+                    target_cell.alignment = copy(source_cell.alignment)
+                    target_cell.border = copy(source_cell.border)
+                target_cell.value = row_data.get(header, "") if header else ""
+                if header:
+                    target_cell.fill = highlight
+                    target_cell.font = copy(text_color)
+
+            wb.save(path)
+            return target_row
+        finally:
+            wb.close()
 
 
 def add_history(entry: dict[str, Any]) -> None:
@@ -425,11 +608,12 @@ def read_history(limit: int = 20) -> list[dict[str, Any]]:
     if not HISTORY_FILE.exists():
         return []
     try:
-        lines = HISTORY_FILE.read_text(encoding="utf-8").splitlines()
+        with HISTORY_FILE.open("r", encoding="utf-8") as history:
+            lines = deque(history, maxlen=limit)
     except OSError:
         return []
     rows: list[dict[str, Any]] = []
-    for line in reversed(lines[-limit:]):
+    for line in reversed(lines):
         try:
             rows.append(json.loads(line))
         except json.JSONDecodeError:
@@ -472,17 +656,44 @@ def get_lan_ip() -> str:
         sock.close()
 
 
+def with_query_params(url: str, params: list[tuple[str, str]]) -> str:
+    parts = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    query.extend((key, value) for key, value in params if value)
+    return urllib.parse.urlunsplit((
+        parts.scheme,
+        parts.netloc,
+        parts.path,
+        urllib.parse.urlencode(query),
+        parts.fragment,
+    ))
+
+
 def share_payload() -> dict[str, str]:
     host = request.host
     port = host.rsplit(":", 1)[1] if ":" in host else "5055"
     lan_url = f"http://{get_lan_ip()}:{port}"
-    phone_url = f"{lan_url}?phone=1"
+    local_phone_url = with_query_params(lan_url, [("phone", "1")])
     current_url = request.host_url.rstrip("/")
+
+    public_url = str(app.config.get("PUBLIC_BASE_URL") or os.environ.get("CHITRAGUPT_PUBLIC_URL", "")).strip().rstrip("/")
+    share_token = str(app.config.get("PUBLIC_SHARE_TOKEN") or os.environ.get("CHITRAGUPT_SHARE_TOKEN", "")).strip()
+    phone_url = local_phone_url
+    if public_url:
+        token_params = [("phone", "1")]
+        if share_token:
+            token_params.append(("share", share_token))
+        phone_url = with_query_params(public_url, token_params)
+
     message = f"Upload invoice/photo here: {phone_url}"
     return {
         "currentUrl": current_url,
         "lanUrl": lan_url,
+        "localPhoneUrl": local_phone_url,
+        "publicUrl": public_url,
+        "publicError": str(app.config.get("PUBLIC_SHARE_ERROR") or ""),
         "phoneUrl": phone_url,
+        "mode": "public" if public_url else "lan",
         "whatsappUrl": "https://wa.me/?text=" + urllib.parse.quote(message),
         "emailUrl": "mailto:?subject=Upload invoice&body=" + urllib.parse.quote(message),
     }
@@ -592,6 +803,33 @@ def api_error(error: Exception, status: int = 400):
     return jsonify({"ok": False, "error": str(error)}), status
 
 
+def is_public_tunnel_request() -> bool:
+    if not app.config.get("PUBLIC_SHARE_TOKEN"):
+        return False
+    return any(request.headers.get(name) for name in FORWARDED_HEADER_NAMES)
+
+
+def has_public_share_token() -> bool:
+    expected = str(app.config.get("PUBLIC_SHARE_TOKEN") or "")
+    supplied = request.args.get("share", "") or request.headers.get(PUBLIC_SHARE_HEADER, "")
+    return bool(expected and supplied and secrets.compare_digest(supplied, expected))
+
+
+@app.before_request
+def require_public_share_token():
+    if not is_public_tunnel_request():
+        return None
+    if request.path.startswith("/static/") or request.path in {"/favicon.ico", "/healthz"}:
+        return None
+    if has_public_share_token():
+        return None
+
+    message = "This public link is missing or expired. Copy a fresh Host link from the desktop app."
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": message}), 403
+    return message, 403
+
+
 @app.get("/")
 def index():
     return render_template("index.html")
@@ -676,6 +914,10 @@ def api_extract():
         config = load_config()
         path = request.form.get("excelPath", "")
         sheet = request.form.get("sheet", "")
+        try:
+            header_row_number = int(request.form.get("headerRow", "") or 0) or None
+        except ValueError:
+            header_row_number = None
         uploaded = request.files.get("document")
         if not uploaded or not uploaded.filename:
             raise ValueError("Choose a PDF or image first.")
@@ -701,16 +943,22 @@ def api_extract():
             sheet_info = inspect_workbook(path, sheet)
             headers = sheet_info["headers"]
             sample_rows = sheet_info["sampleRows"]
+            header_row_number = int(sheet_info.get("headerRow") or 1)
 
-        row_data = call_gemini(
+        configured_model = config.get("gemini_model", DEFAULT_MODEL)
+        row_data, model_used = call_gemini(
             api_key=config.get("gemini_api_key", ""),
-            model=config.get("gemini_model", DEFAULT_MODEL),
+            model=configured_model,
             file_bytes=file_bytes,
             mime_type=mime_type,
             headers=headers,
             sample_rows=sample_rows,
         )
-        row_number = append_to_workbook(path, sheet, headers, row_data)
+        if clean_model_name(model_used) != clean_model_name(configured_model):
+            config["gemini_model"] = clean_model_name(model_used)
+            save_config(config)
+
+        row_number = append_to_workbook(path, sheet, headers, row_data, header_row_number)
         remember_sheet(path, sheet)
 
         non_empty = {key: value for key, value in row_data.items() if str(value).strip()}
@@ -721,6 +969,7 @@ def api_extract():
             "sheet": sheet,
             "rowNumber": row_number,
             "changedCells": non_empty,
+            "modelUsed": model_used,
             "durationSeconds": round(time.time() - started, 2),
         }
         add_history(entry)
@@ -730,6 +979,7 @@ def api_extract():
             "rowNumber": row_number,
             "rowData": row_data,
             "changedCells": non_empty,
+            "modelUsed": model_used,
             "historyEntry": entry,
         })
     except PermissionError as error:
