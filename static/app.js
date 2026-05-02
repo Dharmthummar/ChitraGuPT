@@ -9,6 +9,8 @@ const appState = {
   previewUrl: null,
   phoneMode: false,
   phoneAutoInspectStarted: false,
+  shareToken: new URLSearchParams(window.location.search).get("share") || "",
+  history: [],
 };
 
 const SUPPORTED_UPLOAD_EXTENSIONS = new Set([".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"]);
@@ -84,7 +86,6 @@ function initEls() {
     copyShareButton: $("copyShareButton"),
     refreshShareButton: $("refreshShareButton"),
     whatsappLink: $("whatsappLink"),
-    emailLink: $("emailLink"),
     hostNote: $("hostNote"),
     successOverlay: $("successOverlay"),
     successTitle: $("successTitle"),
@@ -196,12 +197,29 @@ async function optimizeUploadFile(file) {
 }
 
 async function apiJson(url, options = {}) {
-  const response = await fetch(url, options);
+  const requestOptions = {...options};
+  requestOptions.headers = shareHeaders(options.headers);
+  const response = await fetch(apiUrl(url), requestOptions);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
     throw new Error(payload.error || `Request failed: ${response.status}`);
   }
   return payload;
+}
+
+function apiUrl(url) {
+  if (!appState.shareToken || !url.startsWith("/")) return url;
+  const nextUrl = new URL(url, window.location.origin);
+  nextUrl.searchParams.set("share", appState.shareToken);
+  return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+}
+
+function shareHeaders(headers = {}) {
+  const nextHeaders = new Headers(headers || {});
+  if (appState.shareToken) {
+    nextHeaders.set("X-Chitra-Share", appState.shareToken);
+  }
+  return nextHeaders;
 }
 
 async function loadState() {
@@ -226,7 +244,8 @@ function renderState(data) {
 
   renderRecent(config.recentSheets || []);
   renderExcelAutocomplete(config.recentSheets || []);
-  renderHistory(data.history || []);
+  appState.history = Array.isArray(data.history) ? data.history : appState.history;
+  renderHistory(appState.history);
   renderShare(data.share || {});
 
   if (appState.phoneMode) {
@@ -236,16 +255,30 @@ function renderState(data) {
   updateRunState();
 }
 
+function renderConfigRecents(config = {}) {
+  const recentSheets = config.recentSheets || [];
+  renderRecent(recentSheets);
+  renderExcelAutocomplete(recentSheets);
+}
+
 function renderShare(share) {
   const shareLink = share.phoneUrl || share.lanUrl || share.currentUrl || "No link";
   els.shareUrl.textContent = shareLink;
   els.whatsappLink.href = share.whatsappUrl || "#";
-  els.emailLink.href = share.emailUrl || "#";
 
   const localOnly = ["127.0.0.1", "localhost"].includes(window.location.hostname);
-  els.hostNote.textContent = localOnly
-    ? "For phone uploads, start with START_HOST_SHARE.bat."
-    : "This link is ready for phones on the same network.";
+  const hasPublicLink = Boolean(share.publicUrl);
+  const hostNote = share.publicError
+    ? "Public link unavailable. Check the app console."
+    : localOnly
+    ? hasPublicLink
+      ? ""
+      : "Starting public link. Press Refresh in a moment."
+    : hasPublicLink
+      ? "This public link works from other networks while the app is running."
+      : "This link is ready for phones on the same network.";
+  els.hostNote.textContent = hostNote;
+  els.hostNote.style.display = hostNote ? "block" : "none";
 }
 
 function preparePhoneMode(config) {
@@ -341,7 +374,7 @@ function renderSheetSummary(info) {
 
   els.sheetSummary.innerHTML = `
     <strong>${escapeHtml(info.fileName)}</strong>
-    <div>${escapeHtml(info.sheet)} - ${escapeHtml(info.rowCount)} rows - ${escapeHtml(info.validHeaders.length)} columns</div>
+    <div>${escapeHtml(info.sheet)} - header row ${escapeHtml(info.headerRow || 1)} - ${escapeHtml(info.rowCount)} rows - ${escapeHtml(info.validHeaders.length)} columns</div>
   `;
   els.sheetSummary.style.display = "block";
   els.sheetSelectionArea.style.display = "block";
@@ -400,7 +433,7 @@ async function browseExcel() {
     }
     els.excelPath.value = data.path || data.sheet?.path || "";
     renderSheetSummary(data.sheet);
-    await loadState();
+    renderConfigRecents(data.config);
   } catch (error) {
     renderSheetError(error.message);
   } finally {
@@ -426,7 +459,7 @@ async function inspectSheet(forcedSheet = "") {
       body: JSON.stringify({path, sheet: requestedSheet}),
     });
     renderSheetSummary(data.sheet);
-    await loadState();
+    renderConfigRecents(data.config);
   } catch (error) {
     renderSheetError(error.message);
   } finally {
@@ -751,6 +784,29 @@ function resetPhoneFilePrompt() {
   renderFileGrid();
 }
 
+function updateSheetInfoAfterExtraction(results) {
+  if (!appState.sheetInfo || !results.length) return;
+  const sampleRows = [...(appState.sheetInfo.sampleRows || [])];
+  results.forEach((result) => {
+    if (result.rowData) sampleRows.push(result.rowData);
+  });
+  appState.sheetInfo = {
+    ...appState.sheetInfo,
+    rowCount: (appState.sheetInfo.rowCount || 0) + results.length,
+    sampleRows: sampleRows.slice(-3),
+    checkedAt: new Date().toISOString().slice(0, 19),
+  };
+}
+
+function prependHistoryEntries(entries) {
+  if (!entries.length) return;
+  const newestFirst = entries
+    .slice()
+    .sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
+  appState.history = [...newestFirst, ...appState.history].slice(0, 20);
+  renderHistory(appState.history);
+}
+
 async function runExtraction() {
   if (!appState.sheetInfo || appState.selectedFiles.length === 0 || appState.isProcessing) return;
 
@@ -777,10 +833,12 @@ async function runExtraction() {
       if (appState.sheetInfo?.headers) {
         formData.append("headers", JSON.stringify(appState.sheetInfo.headers));
         formData.append("sampleRows", JSON.stringify(appState.sheetInfo.sampleRows || []));
+        formData.append("headerRow", String(appState.sheetInfo.headerRow || 1));
       }
 
-      const response = await fetch("/api/extract", {
+      const response = await fetch(apiUrl("/api/extract"), {
         method: "POST",
+        headers: shareHeaders(),
         body: formData,
       });
       const data = await response.json().catch(() => ({}));
@@ -819,8 +877,8 @@ async function runExtraction() {
     els.dropzone.classList.remove("has-file");
     renderDocumentPreview(null);
     renderFileGrid();
-    await loadState();
-    window.setTimeout(() => inspectSheet(els.sheetSelect.value), 2000);
+    updateSheetInfoAfterExtraction(results);
+    prependHistoryEntries(results.map((item) => item.historyEntry).filter(Boolean));
   } catch (error) {
     failProcessing(error.message);
   } finally {
@@ -865,12 +923,11 @@ async function saveSettings() {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         apiKey: els.apiKey.value.trim(),
-        model: GEMINI_MODEL,
+        model: els.modelName.value.trim() || GEMINI_MODEL,
       }),
     });
     els.apiKey.value = "";
-    renderState({config: data.config, history: [], share: appState.share || {}});
-    await loadState();
+    renderState({config: data.config, history: appState.history, share: appState.share || {}});
     els.settingsDialog.close();
   } catch (error) {
     els.apiKey.placeholder = error.message;
