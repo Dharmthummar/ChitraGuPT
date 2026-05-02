@@ -17,5 +17,5 @@ if errorlevel 1 (
 )
 
 echo Starting ChitraGuPT...
-python serve.py --host 127.0.0.1 --port 5055 --open
+python serve.py --host 0.0.0.0 --port 5055 --open --public
 pause
